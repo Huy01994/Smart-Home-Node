@@ -1,0 +1,64 @@
+const int PINS[5] = {A0, A1, A2, A3, A4};
+const int LED_PIN = 13; // Đèn báo trạng thái
+
+// Biến lưu Min/Max tự động (Khởi tạo ngược để thuật toán chạy đúng)
+int minVals[5] = {1023, 1023, 1023, 1023, 1023}; 
+int maxVals[5] = {0, 0, 0, 0, 0};
+
+float filteredVals[5] = {0, 0, 0, 0, 0}; 
+const float ALPHA = 0.15; 
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+  
+  // --- BẮT ĐẦU CHẾ ĐỘ CÂN CHỈNH (5 GIÂY) ---
+  digitalWrite(LED_PIN, HIGH); // Bật đèn báo hiệu
+  Serial.println("BAT DAU CALIB: Hay nam - xoe tay lien tuc...");
+  
+  unsigned long startTime = millis();
+  while(millis() - startTime < 5000) { // Chạy trong 5000ms (5 giây)
+    for(int i=0; i<5; i++) {
+      int val = analogRead(PINS[i]);
+      
+      // Tự động tìm Min (Lúc thẳng) và Max (Lúc cong)
+      if (val > maxVals[i]) maxVals[i] = val;
+      if (val < minVals[i]) minVals[i] = val;
+    }
+  }
+  
+  // Kết thúc cân chỉnh
+  digitalWrite(LED_PIN, LOW); // Tắt đèn
+  Serial.println("Da xong! Cac gia tri Min - Max:");
+  for(int i=0; i<5; i++) {
+    // In ra để sếp kiểm tra xem nó bắt đúng không
+    Serial.print(minVals[i]); Serial.print("-"); Serial.print(maxVals[i]);
+    if(i<4) Serial.print(" | ");
+    
+    // Tinh chỉnh nhẹ: Mở rộng khoảng đo ra một chút để tránh nhiễu ở biên
+    // minVals[i] -= 5; 
+    // maxVals[i] += 5;
+  }
+  Serial.println();
+}
+
+void loop() {
+  // --- CHẾ ĐỘ HOẠT ĐỘNG BÌNH THƯỜNG ---
+  for(int i = 0; i < 5; i++) {
+    int raw = analogRead(PINS[i]);
+    delay(2);
+    
+    // Lọc nhiễu
+    filteredVals[i] = (ALPHA * raw) + ((1.0 - ALPHA) * filteredVals[i]);
+    
+    // Map giá trị dựa trên số vừa học được ở setup()
+    // Dùng constrain để đảm bảo không bị quá góc
+    int angle = map((int)filteredVals[i], minVals[i], maxVals[i], 0, 180);
+    angle = constrain(angle, 0, 180);
+    
+    Serial.print(angle);
+    if(i < 4) Serial.print(","); 
+  }
+  Serial.println(); 
+  delay(50); 
+}
